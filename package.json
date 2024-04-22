@@ -1,0 +1,30 @@
+{
+  "name": "discord-transcribe",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "ts-node src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@discordjs/opus": "git+https://github.com/JacobLinCool/opus.git#main",
+    "@discordjs/voice": "^0.16.1",
+    "@google-cloud/speech": "^6.5.0",
+    "@google-cloud/text-to-speech": "^5.2.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "ffmpeg": "^0.0.4",
+    "libsodium-wrappers": "^0.7.13",
+    "ts-node": "^10.9.2",
+    "uninstall": "^0.0.0"
+  },
+  "devDependencies": {
+    "@types/ffmpeg": "^1.0.7",
+    "typescript": "^5.4.5"
+  }
+}
