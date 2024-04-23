@@ -9,7 +9,7 @@ import { arrayEqual, round, rmIfExistsSync } from './lib';
 
 dotenv.config();
 
-const directory = './audio'
+const directory = './audio';
 rmIfExistsSync(directory, { recursive: true });
 fs.mkdirSync(directory);
 
@@ -41,13 +41,13 @@ discord.on('voiceStateUpdate', (stateOld: VoiceState, stateNew: VoiceState) => {
 
   // if bot is only member in VC
   if (arrayEqual(ids, [discord.user?.id])) {
-    console.log('i am alone')
+    console.log('i am alone');
     connection?.disconnect();
   }
 
   // when bot is disconnected
   if (stateOld.id === discord.user?.id && stateOld.channelId && !stateNew.channelId) {
-    console.log('i am disconnected')
+    console.log('i am disconnected');
     rmIfExistsSync(directory, { recursive: true });
   }
 });
@@ -75,7 +75,9 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
     selfMute: true,
     selfDeaf: false,
   });
-  console.debug(`i am connected to server ${channelVoice.guild.name} (${channelVoice.guild.id}) channel ${channelVoice.name} (${channelVoice.id})`);
+  console.debug(`i am connected`);
+  console.debug(`  server  ${channelVoice.guild.name} (${channelVoice.guild.id})`);
+  console.debug(`  channel ${channelVoice.name} (${channelVoice.id})`);
 
   connection.receiver.speaking.on('start', (userId: string) => {
     if (userIdsSubscribed.has(userId) || !connection)
@@ -166,7 +168,7 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
       });
     });
   });
-}
+};
 
 if (!process.env.DISCORD_TOKEN)
   throw 'set DISCORD_TOKEN';
