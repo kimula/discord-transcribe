@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import { exec } from 'child_process';
 import prism from 'prism-media';
-import { GatewayIntentBits, Client, Partials, Message, VoiceBasedChannel, VoiceState, GuildMember, AttachmentBuilder } from 'discord.js';
+import { GatewayIntentBits, Client, Partials, Message, VoiceBasedChannel, VoiceState, AttachmentBuilder } from 'discord.js';
 import { joinVoiceChannel, EndBehaviorType, AudioReceiveStream, VoiceConnection } from '@discordjs/voice';
 import { SpeechClient } from '@google-cloud/speech';
 import { arrayEqual, round, rmIfExistsSync } from './lib';
@@ -24,7 +24,7 @@ const discord: Client = new Client({
     GatewayIntentBits.GuildVoiceStates,
   ],
   partials: [Partials.Message, Partials.Channel],
-})
+});
 
 let connection: VoiceConnection | null = null;
 
@@ -75,7 +75,7 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
     selfMute: true,
     selfDeaf: false,
   });
-  console.debug(`i am connected to VC ${channelVoice.name} (${channelVoice.id})`);
+  console.debug(`i am connected to server ${channelVoice.guild.name} (${channelVoice.guild.id}) channel ${channelVoice.name} (${channelVoice.id})`);
 
   connection.receiver.speaking.on('start', (userId: string) => {
     if (userIdsSubscribed.has(userId) || !connection)
