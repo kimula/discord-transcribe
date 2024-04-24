@@ -3,7 +3,7 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import prism from 'prism-media';
 import { GatewayIntentBits, Client, Partials, Message, VoiceBasedChannel, VoiceState, AttachmentBuilder } from 'discord.js';
-import { joinVoiceChannel, EndBehaviorType, AudioReceiveStream, VoiceConnection } from '@discordjs/voice';
+import { joinVoiceChannel, EndBehaviorType, AudioReceiveStream, VoiceConnection, getVoiceConnection } from '@discordjs/voice';
 import { SpeechClient } from '@google-cloud/speech';
 import { arrayEqual, round, rmIfExistsSync } from './lib';
 
@@ -26,30 +26,38 @@ const discord: Client = new Client({
   partials: [Partials.Message, Partials.Channel],
 });
 
-let connection: VoiceConnection | null = null;
-
 discord.once('ready', () => {
   if (discord.user)
-    console.log('i am ready as ' + discord.user.tag);
+    console.log('ready as ' + discord.user.tag);
 });
 
 const userIdsSubscribed: Set<string> = new Set();
 
 discord.on('voiceStateUpdate', (stateOld: VoiceState, stateNew: VoiceState) => {
-  const ids: string[] = Array.from((stateOld?.channel || stateNew?.channel)!.members.values())
-    .map(({ id }) => id);
+  const channel: VoiceBasedChannel | null = stateOld?.channel || stateNew?.channel;
 
-  // if bot is only member in VC
-  if (arrayEqual(ids, [discord.user?.id])) {
-    console.log('i am alone');
-    connection?.disconnect();
+  // someone disconncted or moved
+  if (stateOld.channel) {
+    const { channel } = stateOld;
+    // those who in the channel
+    const ids: string[] = Array.from(channel!.members.values()).map(({ id }) => id);
+
+    // when i am only member in the channel
+    if (arrayEqual(ids, [discord.user?.id])) {
+      console.log(`alone in server ${channel.guild.name} (${channel.guild.id}) channel ${channel.name} (${channel.id})`);
+
+      //disconnect
+      getVoiceConnection(channel.guild.id)?.destroy();
+    }
+
+    // when i am disconnected
+    if (stateOld.id === discord.user?.id) {
+      console.log(`disconnected from server ${channel.guild.name} (${channel.guild.id}) channel ${channel.name} (${channel.id})`);
+      channel.send('disconnected');
+      //rmIfExistsSync(directory, { recursive: true });
+    }
   }
 
-  // when bot is disconnected
-  if (stateOld.id === discord.user?.id && stateOld.channelId && !stateNew.channelId) {
-    console.log('i am disconnected');
-    rmIfExistsSync(directory, { recursive: true });
-  }
 });
 
 discord.on('messageCreate', async (message: Message) => {
@@ -68,19 +76,23 @@ discord.on('messageCreate', async (message: Message) => {
 const transcribe = (channelVoice: VoiceBasedChannel) => {
   const time = new Date();
 
-  connection = joinVoiceChannel({
+  const connection = joinVoiceChannel({
     channelId: channelVoice.id,
     guildId: channelVoice.guild.id,
     adapterCreator: channelVoice.guild.voiceAdapterCreator,
     selfMute: true,
     selfDeaf: false,
   });
-  console.debug(`i am connected`);
-  console.debug(`  server  ${channelVoice.guild.name} (${channelVoice.guild.id})`);
-  console.debug(`  channel ${channelVoice.name} (${channelVoice.id})`);
+  console.debug(`connected to server ${channelVoice.guild.name} (${channelVoice.guild.id}) channel ${channelVoice.name} (${channelVoice.id})`);
+  channelVoice.send('connected');
 
   connection.receiver.speaking.on('start', (userId: string) => {
     if (userIdsSubscribed.has(userId) || !connection)
+      return;
+
+    userId
+
+    if (discord.users.cache.get(userId)?.bot)
       return;
 
     const streamReceive: AudioReceiveStream = connection.receiver.subscribe(userId, {
@@ -94,7 +106,7 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
       })
       .on('error', (error: Error) => {
         userIdsSubscribed.delete(userId);
-        console.error(`subscription erred: userId=${userId}`, error);
+        console.error(`subscription erred: userId = ${userId}`, error);
       });
 
     userIdsSubscribed.add(userId);
@@ -128,27 +140,29 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
         .on('data', data => {
           try {
             const { transcript, confidence } = data.results[0].alternatives[0];
-            //channelVoice.send(`<@${userId}> ${transcript} \`${round(confidence, 6).toString().slice(1)}\``);
+            //channelVoice.send(`<@${userId}> ${transcript}\`${round(confidence, 6).toString().slice(1)}\``);
 
-            discord.users.fetch(userId)
-              .then(user => {
-                const embed = {
-                  color: [0xFF0000, 0xFFA500, 0xFFFF00, 0xADFF2F, 0x00FF00][Math.floor(confidence * 5)],
-                  author: {
-                    name: user.displayName,
-                    url: 'https://discordapp.com/users/' + user.id,
-                    icon_url: user.avatarURL() || ''
-                  },
-                  fields: [
-                    //{ name: 'user', value: `<@${userId}>`, inline: true },
-                    { name: 'transcript', value: transcript, inline: true },
-                    { name: 'confidence', value: round(confidence, 3).toString().slice(1), inline: true },
-                  ],
-                  files: [new AttachmentBuilder(file + '.flac')],
-                  footer: { text: time.toISOString() },
-                };
-                channelVoice.send({ embeds: [embed] });
-              });
+            discord.users.fetch(userId).then(user => {
+              const embed = {
+                color: [0xFF0000, 0xFFA500, 0xFFFF00, 0xADFF2F, 0x00FF00][Math.floor(confidence * 5)],
+                author: {
+                  name: user.displayName,
+                  url: 'https://discordapp.com/users/' + user.id,
+                  icon_url: user.avatarURL() || ''
+                },
+                fields: [
+                  //{ name: 'user', value: `<@${userId}>`, inline: true },
+                  { name: 'transcript', value: transcript, inline: false },
+                  { name: 'confidence', value: round(confidence, 3).toString().slice(1), inline: true },
+                ],
+                //files: [new AttachmentBuilder(file + '.flac')],
+                footer: { text: time.toISOString() },
+              };
+              channelVoice.send({ embeds: [embed] });
+
+              rmIfExistsSync(file + '.pcm');
+              rmIfExistsSync(file + '.flac');
+            });
           } catch (error) {
             console.error(error);
             if (error instanceof Error)
@@ -157,14 +171,23 @@ const transcribe = (channelVoice: VoiceBasedChannel) => {
                   title: 'error',
                   color: 0x000000,
                   fields: [{ name: 'message', value: error.message }],
-                }]
+                }],
               });
+          } finally {
+            rmIfExistsSync(file + '.flac');
           }
         });
 
       ffmpeg.on("exit", async () => {
-        fs.readFileSync(file + '.flac');
-        fs.createReadStream(file + '.flac').pipe(streamRecognize);
+        rmIfExistsSync(file + '.pcm');
+
+        try {
+          fs.readFileSync(file + '.flac');
+          fs.createReadStream(file + '.flac').pipe(streamRecognize);
+        } catch (error) {
+          if (error instanceof Error)
+            console.error(error);
+        }
       });
     });
   });
